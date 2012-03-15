@@ -17,10 +17,10 @@ var credentials = {username: 'xxx', password: 'xxx' };
 var local=true;
 var db;
 if(local===true) {
-  db = new(cradle.Connection)().database('html5-microblog');
+  db = new(cradle.Connection)().database('microblog');
 }
 else {
-  db = new(cradle.Connection)(host, port, {auth: credentials}).database('html5-microblog');
+  db = new(cradle.Connection)(host, port, {auth: credentials}).database('microblog');
 }
 
 // global data
@@ -68,13 +68,13 @@ function validateUser(req, res, next) {
   req.credentials = credentials;
 
   // ok, let's look this user up
-  view = '/_design/microblog/_view/users_by_id';
+  view = 'microblog/users_by_id';
   
   options = {};
   options.descending='true';
-  options.key=String.fromCharCode(34)+req.credentials[0]+String.fromCharCode(34);
+  options.key=req.credentials[0];
   
-  db.get(view, options, function(err, doc) {
+  db.view(view, options, function(err, doc) {
     try {
       if(doc[0].value.password===req.credentials[1]) {
         next(req,res);
@@ -96,14 +96,14 @@ app.get('/microblog/', function(req, res){
 
   var ctype;
   
-  var view = '/_design/microblog/_view/posts_all';
+  var view = 'microblog/posts_all';
   
   var options = {};
   options.descending = 'true';
 
   ctype = acceptsXml(req);
   
-  db.get(view, options, function(err, doc) {
+  db.view(view, options, function(err, doc) {
     res.header('content-type',ctype);
     res.render('index', {
       title: 'Home',
@@ -119,14 +119,14 @@ app.get('/microblog/messages/:i', function(req, res){
   var view, options, id, ctype;
   id = req.params.i;
   
-  view = '/_design/microblog/_view/posts_by_id';
+  view = 'microblog/posts_by_id';
   options = {};
   options.descending='true';
-  options.key=String.fromCharCode(34)+id+String.fromCharCode(34);
+  options.key=id;
 
   ctype = acceptsXml(req);
   
-  db.get(view, options, function(err, doc) {
+  db.view(view, options, function(err, doc) {
     res.header('content-type',ctype);
     res.render('message', {
       title: id,
@@ -176,12 +176,12 @@ app.get('/microblog/users/:i', function(req, res){
   id = req.params.i;
   ctype = acceptsXml(req);
     
-  view = '/_design/microblog/_view/users_by_id';
+  view = 'microblog/users_by_id';
   options = {};
   options.descending='true';
-  options.key=String.fromCharCode(34)+id+String.fromCharCode(34);
+  options.key=id;
   
-  db.get(view, options, function(err, doc) {
+  db.view(view, options, function(err, doc) {
     res.header('content-type',ctype);
     res.render('user', {
       title: id,
@@ -199,12 +199,12 @@ app.get('/microblog/user-messages/:i', function(req, res){
   id = req.params.i;
   ctype = acceptsXml(req);
   
-  view = '/_design/microblog/_view/posts_by_user';
+  view = 'microblog/posts_by_user';
   options = {};
   options.descending='true';
-  options.key=String.fromCharCode(34)+id+String.fromCharCode(34);
+  options.key=id;
   
-  db.get(view, options, function(err, doc) {
+  db.view(view, options, function(err, doc) {
     res.header('content-type',ctype);
     res.render('user-messages', {
       title: id,
@@ -218,11 +218,11 @@ app.get('/microblog/user-messages/:i', function(req, res){
 app.get('/microblog/users/', function(req, res){
   var ctype;
   
-  var view = '/_design/microblog/_view/users_by_id';
+  var view = 'microblog/users_by_id';
   
   ctype = acceptsXml(req);
     
-  db.get(view, function(err, doc) {
+  db.view(view, function(err, doc) {
     res.header('content-type',ctype);
     res.render('users', {
       title: 'User List',
