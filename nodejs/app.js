@@ -74,7 +74,7 @@ app.post('/messages/', function(req, res) {
         if (err) {
           res.send(500);
         } else {
-          res.redirect('/', 303);
+          res.redirect('/', 302); // Should be 303, but Cloud9 doesn't like that.
         }
       });  
     }
@@ -162,7 +162,7 @@ app.post('/users/', function(req, res) {
       if (err) {
         res.send(500);
       } else {
-        res.redirect('/users/', 303);
+        res.redirect('/users/', 302); // Should be 303, but Cloud9 doesn't like that.
       }
     });    
   }
