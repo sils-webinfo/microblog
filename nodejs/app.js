@@ -1,34 +1,21 @@
-/* 2001-07-25 (mca) : collection+json */
-/* Designing Hypermedia APIs by Mike Amundsen (2011) */
+// Designing Hypermedia APIs by Mike Amundsen (2011)
 
-/**
- * Module dependencies.
- */
-
-// for express
+// Initialize the Express web framework.
 var express = require('express');
 var app = module.exports = express.createServer();
 
-// for couch
+// Initialize our database connection.
 var cradle = require('cradle');
 var host = 'https://rybesh.iriscouch.com';
 var port = 443;
 //var credentials = {username: 'xxx', password: 'xxx' };
-var local=false;
-var db;
-if(local===true) {
-  db = new(cradle.Connection)().database('microblog');
-}
-else {
-  db = new(cradle.Connection)(host, port).database('microblog');
-}
+var db = new(cradle.Connection)(host, port).database('microblog');
 
-// global data
-var contentType = 'text/html';
-var baseUrl = '/microblog/';
+// Set some constants for convenience.
+var DEFAULT_CONTENT_TYPE = 'text/html';
+var BASE_PATH = '/microblog/';
 
-// Configuration
-
+// Configure the Express web framework.
 app.configure(function(){
   app.set('views', __dirname + '/views');
   app.set('view engine', 'ejs');
@@ -36,62 +23,12 @@ app.configure(function(){
   app.use(express.methodOverride());
   app.use(app.router);
   app.use(express.static(__dirname + '/public'));
-});
-
-app.configure('development', function(){
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true })); 
 });
 
-app.configure('production', function(){
-  app.use(express.errorHandler()); 
-});
+// Start defining our resource handlers.
 
-/* validate user (from  db) via HTTP Basic Auth */
-function validateUser(req, res, next) {
-
-  var parts, auth, scheme, credentials; 
-  var view, options;
-  
-  // handle auth stuff
-  auth = req.headers["authorization"];
-  if (!auth){
-    return authRequired(res, 'Microblog');
-  }  
-  
-  parts = auth.split(' ');
-  scheme = parts[0];
-  credentials = new Buffer(parts[1], 'base64').toString().split(':');
-  
-  if ('Basic' != scheme) {
-    return badRequest(res);
-  } 
-  req.credentials = credentials;
-
-  // ok, let's look this user up
-  view = 'microblog/users_by_id';
-  
-  options = {};
-  options.descending='true';
-  options.key=req.credentials[0];
-  
-  db.view(view, options, function(err, doc) {
-    try {
-      if(doc[0].value.password===req.credentials[1]) {
-        next(req,res);
-      }
-      else {
-        throw new Error('Invalid User');
-      } 
-    }
-    catch (ex) {
-      return authRequired(res, 'Microblog');
-    }
-  });
-}
-
-// Routes
-
-/* starting page */
+// The root resource or "index".
 app.get('/microblog/', function(req, res){
 
   var ctype;
@@ -107,17 +44,17 @@ app.get('/microblog/', function(req, res){
     res.header('content-type',ctype);
     res.render('index', {
       title: 'Home',
-      site: baseUrl,
+      site: BASE_PATH,
       items: doc
     });  
   });
 });
 
-/* single message page */
-app.get('/microblog/messages/:i', function(req, res){
+// A single message resource.
+app.get('/microblog/messages/:id', function(req, res){
 
   var view, options, id, ctype;
-  id = req.params.i;
+  id = req.params.id;
   
   view = 'microblog/posts_by_id';
   options = {};
@@ -130,7 +67,7 @@ app.get('/microblog/messages/:i', function(req, res){
     res.header('content-type',ctype);
     res.render('message', {
       title: id,
-      site: baseUrl,
+      site: BASE_PATH,
       items: doc
     });  
   });
@@ -185,7 +122,7 @@ app.get('/microblog/users/:i', function(req, res){
     res.header('content-type',ctype);
     res.render('user', {
       title: id,
-      site: baseUrl,
+      site: BASE_PATH,
       items: doc
     });  
   });
@@ -208,7 +145,7 @@ app.get('/microblog/user-messages/:i', function(req, res){
     res.header('content-type',ctype);
     res.render('user-messages', {
       title: id,
-      site: baseUrl,
+      site: BASE_PATH,
       items: doc
     });  
   });
@@ -226,7 +163,7 @@ app.get('/microblog/users/', function(req, res){
     res.header('content-type',ctype);
     res.render('users', {
       title: 'User List',
-      site: baseUrl,
+      site: BASE_PATH,
       items: doc
     });  
   });
@@ -275,13 +212,58 @@ app.get('/microblog/register/', function(req, res){
   res.header('content-type',ctype);
   res.render('register', {
     title: 'Register',
-    site: baseUrl
+    site: BASE_PATH
   });
 });
 
+// Below here we define some utility functions.
+
+// Authenticate a user using the HTTP Basic Authentication protocol.
+function validateUser(req, res, next) {
+
+  var parts, auth, scheme, credentials; 
+  var view, options;
+  
+  // handle auth stuff
+  auth = req.headers["authorization"];
+  if (!auth){
+    return authRequired(res, 'Microblog');
+  }  
+  
+  parts = auth.split(' ');
+  scheme = parts[0];
+  credentials = new Buffer(parts[1], 'base64').toString().split(':');
+  
+  if ('Basic' != scheme) {
+    return badRequest(res);
+  } 
+  req.credentials = credentials;
+
+  // ok, let's look this user up
+  view = 'microblog/users_by_id';
+  
+  options = {};
+  options.descending='true';
+  options.key=req.credentials[0];
+  
+  db.view(view, options, function(err, doc) {
+    try {
+      if(doc[0].value.password===req.credentials[1]) {
+        next(req,res);
+      }
+      else {
+        throw new Error('Invalid User');
+      } 
+    }
+    catch (ex) {
+      return authRequired(res, 'Microblog');
+    }
+  });
+}
+
 /* support various content-types from clients */
 function acceptsXml(req) {
-  var ctype = contentType;
+  var ctype = DEFAULT_CONTENT_TYPE;
   var acc = req.headers["accept"];
   
   switch(acc) {
@@ -295,7 +277,7 @@ function acceptsXml(req) {
       ctype = "application/xhtml+xml";
       break;
     default:
-      ctype = contentType;
+      ctype = DEFAULT_CONTENT_TYPE;
       break;
   }
   return ctype;
@@ -383,8 +365,5 @@ function badRequest(res) {
   res.end('Bad Request');
 }
 
-// Only listen on $ node app.js
-if (!module.parent) {
-  app.listen(process.env.PORT);
-  console.log("Express server listening on port %d", app.address().port);
-}
+// Start listening for incoming HTTP connections.
+app.listen(process.env.PORT);
