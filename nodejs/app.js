@@ -1,369 +1,178 @@
-// Designing Hypermedia APIs by Mike Amundsen (2011)
+// Based on source code from Designing Hypermedia APIs by Mike Amundsen (2011)
 
-// Initialize the Express web framework.
-var express = require('express');
-var app = module.exports = express.createServer();
+// Import some utility functions.
+var utils = require('./utils');
 
-// Initialize our database connection.
-var cradle = require('cradle');
-var host = 'https://rybesh.iriscouch.com';
-var port = 443;
-//var credentials = {username: 'xxx', password: 'xxx' };
-var db = new(cradle.Connection)(host, port).database('microblog');
+// Create a new web application.
+var app = utils.initializeWebApp();
 
-// Set some constants for convenience.
-var DEFAULT_CONTENT_TYPE = 'text/html';
-var BASE_PATH = '/microblog/';
-
-// Configure the Express web framework.
-app.configure(function(){
-  app.set('views', __dirname + '/views');
-  app.set('view engine', 'ejs');
-  app.use(express.bodyParser());
-  app.use(express.methodOverride());
-  app.use(app.router);
-  app.use(express.static(__dirname + '/public'));
-  app.use(express.errorHandler({ dumpExceptions: true, showStack: true })); 
-});
+// Connect to our database.
+var db = utils.connectToDatabase('microblog');
 
 // Start defining our resource handlers.
 
-// The root resource or "index".
-app.get('/microblog/', function(req, res){
+// Handle GET of the root resource or "index".
+app.get('/', function(req, res) {
+  
+  // Set our database query options.
+  var queryOptions = { descending: true };
 
-  var ctype;
-  
-  var view = 'microblog/posts_all';
-  
-  var options = {};
-  options.descending = 'true';
-
-  ctype = acceptsXml(req);
-  
-  db.view(view, options, function(err, doc) {
-    res.header('content-type',ctype);
-    res.render('index', {
-      title: 'Home',
-      site: BASE_PATH,
-      items: doc
-    });  
-  });
+  // Query the database for all messages, and send an HTML representation of them.
+  db.view('microblog/posts_all', queryOptions, 
+    function(err, data) {
+      res.header('content-type', utils.negotiateContentType(req));
+      res.render('index', {
+        title: 'Home',
+        items: data
+      });  
+    }
+  );
 });
 
-// A single message resource.
-app.get('/microblog/messages/:id', function(req, res){
+// Handle GET of single message resource.
+app.get('/messages/:id', function(req, res){
 
-  var view, options, id, ctype;
-  id = req.params.id;
+  // Get the message ID from the URI.
+  var message_id = req.params.id;
   
-  view = 'microblog/posts_by_id';
-  options = {};
-  options.descending='true';
-  options.key=id;
+  // Set our database query options.
+  var queryOptions = {
+    key: message_id,
+    descending: true
+  };
 
-  ctype = acceptsXml(req);
-  
-  db.view(view, options, function(err, doc) {
-    res.header('content-type',ctype);
+  // Query the database for the message, and send an HTML representation of it.
+  db.view('microblog/posts_by_id', queryOptions, function(err, data) {
+    res.header('content-type', utils.negotiateContentType(req));
     res.render('message', {
-      title: id,
-      site: BASE_PATH,
-      items: doc
+      title: message_id,
+      items: data
     });  
   });
 });
 
-// add a message
-app.post('/microblog/messages/', function(req, res) {
+// Handle POST to the message list resource.
+app.post('/messages/', function(req, res) {
   
-  validateUser(req, res, function(req,res) {
-  
-    var text, item;
-    
-    // get data array
-    text = req.body.message;
-    if(text!=='') {
-      item = {};
-      item.type='post';
-      item.text = text;
-      item.user = req.credentials[0];
-      item.dateCreated = now();
+  // This method requires an authenticated user.
+  utils.authenticateUser(db, req, res, function(req,res) {
+
+    // Get the POSTed text and create a new message object.
+    var text = req.body.message;
+    if (text !== '') {
+      res.send('Empty message', 400);
+    } else {
+      var message = {
+        type: 'post',
+        text: text,
+        user: req.credentials[0],
+        dateCreated: utils.now()
+      };
       
-      // write to DB
-      db.save(item, function(err, doc) {
-        if(err) {
-          res.status=400;
-          res.send(err);
-        }
-        else {
-          res.redirect('/microblog/', 302);
+      // Save the message object in the database.
+      db.save(message, function(err, data) {
+        if (err) {
+          res.send(500);
+        } else {
+          res.redirect('/', 303);
         }
       });  
     }
-    else {
-      return badReqest(res);
-    }
   });
 });
 
-/* single user profile page */
-app.get('/microblog/users/:i', function(req, res){
+// Handle GET of single user profile resource.
+app.get('/users/:id', function(req, res){
 
-  var view, options, id, ctype;
-  id = req.params.i;
-  ctype = acceptsXml(req);
+  // Get the user ID from the URI.
+  var user_id = req.params.id;
     
-  view = 'microblog/users_by_id';
-  options = {};
-  options.descending='true';
-  options.key=id;
+  // Set our database query options.
+  var queryOptions = {
+    key: user_id,
+    descending: true
+  };
   
-  db.view(view, options, function(err, doc) {
-    res.header('content-type',ctype);
+  // Query the database for the user, and send an HTML representation of it.
+  db.view('microblog/users_by_id', queryOptions, function(err, data) {
+    res.header('content-type', utils.negotiateContentType(req));
     res.render('user', {
-      title: id,
-      site: BASE_PATH,
-      items: doc
+      title: user_id,
+      items: data
     });  
   });
 });
 
-/* user messages page */
-app.get('/microblog/user-messages/:i', function(req, res){
+// Handle GET of user message list resource.
+app.get('/user-messages/:id', function(req, res){
 
-  var view, options, id, ctype;
- 
-  id = req.params.i;
-  ctype = acceptsXml(req);
+  // Get the user ID from the URI.
+  var user_id = req.params.id;
   
-  view = 'microblog/posts_by_user';
-  options = {};
-  options.descending='true';
-  options.key=id;
+  // Set our database query options.
+  var queryOptions = {
+    key: user_id,
+    descending: true
+  };
   
-  db.view(view, options, function(err, doc) {
-    res.header('content-type',ctype);
+  // Query the database for the user's messages, and send an HTML representation of them.
+  db.view('microblog/posts_by_user', queryOptions, function(err, data) {
+    res.header('content-type', utils.negotiateContentType(req));
     res.render('user-messages', {
-      title: id,
-      site: BASE_PATH,
-      items: doc
+      title: user_id,
+      items: data
     });  
   });
 });
 
-/* get user list page */
-app.get('/microblog/users/', function(req, res){
-  var ctype;
-  
-  var view = 'microblog/users_by_id';
-  
-  ctype = acceptsXml(req);
-    
-  db.view(view, function(err, doc) {
-    res.header('content-type',ctype);
+// Handle GET of user list resource.
+app.get('/users/', function(req, res){
+
+  // Query the database for all users, and send an HTML representation of them.
+  db.view('microblog/users_by_id', function(err, data) {
+    res.header('content-type', utils.negotiateContentType(req));
     res.render('users', {
       title: 'User List',
-      site: BASE_PATH,
-      items: doc
+      items: data
     });  
   });
 });
 
-/* post to user list page */
-app.post('/microblog/users/', function(req, res) {
+// Handle POST to user list resource.
+app.post('/users/', function(req, res) {
 
-  var item,id; 
-
-  id = req.body.user;
-  if(id==='') {
-    res.status=400;
-    res.send('missing user');  
-  }
-  else {
-    item = {};
-    item.type='user';
-    item.password = req.body.password;
-    item.name = req.body.name;
-    item.email = req.body.email;
-    item.description = req.body.description;
-    item.imageUrl = req.body.avatar;
-    item.websiteUrl = req.body.website;
-    item.dateCreated = today();
-    
-    // write to DB
-    db.save(req.body.user, item, function(err, doc) {
-      if(err) {
-        res.status=400;
-        res.send(err);
-      }
-      else {
-        res.redirect('/microblog/users/', 302);
+  // Get the POSTed user data and create a new user object.
+  var user_id = req.body.user;
+  if (user_id === '') {
+    res.send('Missing user ID', 400);  
+  } else {
+    var user = {
+      type: 'user',
+      password: req.body.password,
+      name: req.body.name,
+      email: req.body.email,
+      description: req.body.description,
+      imageUrl: req.body.avatar,
+      websiteUrl: req.body.website,
+      dateCreated: utils.today()
+    }; 
+   
+    // Save the message object in the database.
+    db.save(user_id, user, function(err, data) {
+      if (err) {
+        res.send(500);
+      } else {
+        res.redirect('/users/', 303);
       }
     });    
   }
 });
 
-/* get user register page */
-app.get('/microblog/register/', function(req, res){
-
-  var ctype;
-  ctype = acceptsXml(req);
-
-  res.header('content-type',ctype);
-  res.render('register', {
-    title: 'Register',
-    site: BASE_PATH
-  });
+// Handle GET of registration page resource.
+app.get('/register/', function(req, res){
+  res.header('content-type', utils.negotiateContentType(req));
+  res.render('register', { title: 'Register' });
 });
-
-// Below here we define some utility functions.
-
-// Authenticate a user using the HTTP Basic Authentication protocol.
-function validateUser(req, res, next) {
-
-  var parts, auth, scheme, credentials; 
-  var view, options;
-  
-  // handle auth stuff
-  auth = req.headers["authorization"];
-  if (!auth){
-    return authRequired(res, 'Microblog');
-  }  
-  
-  parts = auth.split(' ');
-  scheme = parts[0];
-  credentials = new Buffer(parts[1], 'base64').toString().split(':');
-  
-  if ('Basic' != scheme) {
-    return badRequest(res);
-  } 
-  req.credentials = credentials;
-
-  // ok, let's look this user up
-  view = 'microblog/users_by_id';
-  
-  options = {};
-  options.descending='true';
-  options.key=req.credentials[0];
-  
-  db.view(view, options, function(err, doc) {
-    try {
-      if(doc[0].value.password===req.credentials[1]) {
-        next(req,res);
-      }
-      else {
-        throw new Error('Invalid User');
-      } 
-    }
-    catch (ex) {
-      return authRequired(res, 'Microblog');
-    }
-  });
-}
-
-/* support various content-types from clients */
-function acceptsXml(req) {
-  var ctype = DEFAULT_CONTENT_TYPE;
-  var acc = req.headers["accept"];
-  
-  switch(acc) {
-    case "text/xml":
-      ctype = "text/xml";
-      break;
-    case "application/xml":
-      ctype = "application/xml";
-      break;
-    case "application/xhtml+xml":
-      ctype = "application/xhtml+xml";
-      break;
-    default:
-      ctype = DEFAULT_CONTENT_TYPE;
-      break;
-  }
-  return ctype;
-}
-
-/* compute the current date/time as a simple date */
-function today() {
-
-  var y, m, d, dt;
-  
-  dt = new Date();
-
-  y = String(dt.getFullYear());
-  
-  m = String(dt.getMonth()+1);
-  if(m.length===1) {
-    m = '0'+m;
-  }
-
-  d = String(dt.getDate());
-  if(d.length===1) {
-    d = '0'+d.toString();
-  }
-
-  return y+'-'+m+'-'+d;
-}
-
-/* compute the current date/time */
-function now() {
-  var y, m, d, h, i, s, dt;
-  
-  dt = new Date();
-  
-  y = String(dt.getFullYear());
-  
-  m = String(dt.getMonth()+1);
-  if(m.length===1) {
-    m = '0'+m;
-  }
-
-  d = String(dt.getDate());
-  if(d.length===1) {
-    d = '0'+d.toString();
-  }
-  
-  h = String(dt.getHours()+1);
-  if(h.length===1) {
-    h = '0'+h;
-  }
-  
-  i = String(dt.getMinutes()+1);
-  if(i.length===1) {
-    i = '0'+i;
-  }
-  
-  s = String(dt.getSeconds()+1);
-  if(s.length===1) {
-    s = '0'+s;
-  }
-  return y+'-'+m+'-'+d+' '+h+':'+i+':'+s;
-}
-
-/* return standard 403 response */
-function forbidden(res) {
-
-  var body = 'Forbidden';
-
-  res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Content-Length', body.length);
-  res.statusCode = 403;
-  res.end(body);
-}
-
-/* return standard 'auth required' response */
-function authRequired(res,realm) {
-  var r = (realm||'Authentication Required');
-  res.statusCode = 401;
-  res.setHeader('WWW-Authenticate', 'Basic realm="' + r + '"');
-  res.end('Unauthorized');
-}
-
-/* return standard 'bad inputs' response */
-function badRequest(res) {
-  res.statusCode = 400;
-  res.end('Bad Request');
-}
 
 // Start listening for incoming HTTP connections.
 app.listen(process.env.PORT);
