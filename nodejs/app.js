@@ -11,21 +11,21 @@ var app = module.exports = express.createServer();
 
 // for couch
 var cradle = require('cradle');
-var host = 'https://remote-couchdb-server.com';
+var host = 'https://rybesh.iriscouch.com';
 var port = 443;
-var credentials = {username: 'xxx', password: 'xxx' };
-var local=true;
+//var credentials = {username: 'xxx', password: 'xxx' };
+var local=false;
 var db;
 if(local===true) {
   db = new(cradle.Connection)().database('microblog');
 }
 else {
-  db = new(cradle.Connection)(host, port, {auth: credentials}).database('microblog');
+  db = new(cradle.Connection)(host, port).database('microblog');
 }
 
 // global data
 var contentType = 'text/html';
-var baseUrl = 'http://localhost:3000/microblog/';
+var baseUrl = '/microblog/';
 
 // Configuration
 
@@ -385,6 +385,6 @@ function badRequest(res) {
 
 // Only listen on $ node app.js
 if (!module.parent) {
-  app.listen(3000);
+  app.listen(process.env.PORT);
   console.log("Express server listening on port %d", app.address().port);
 }
