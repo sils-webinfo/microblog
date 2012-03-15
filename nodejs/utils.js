@@ -19,6 +19,7 @@ function initializeWebApp() {
   });
   return app;
 }
+exports.initializeWebApp = initializeWebApp;
 
 function connectToDatabase(name) {
   var host = 'https://rybesh.iriscouch.com';
@@ -26,6 +27,7 @@ function connectToDatabase(name) {
   //var credentials = {username: 'xxx', password: 'xxx' };
   return new(cradle.Connection)(host, port).database(name);
 }
+exports.connectToDatabase = connectToDatabase;
 
 // Authenticate a user using the HTTP Basic Authentication protocol.
 function authenticateUser(db, req, res, next) {
@@ -69,6 +71,7 @@ function authenticateUser(db, req, res, next) {
     }
   });
 }
+exports.authenticateUser = authenticateUser;
 
 // 'Negotiate' content type; i.e. send them what they requested.
 function negotiateContentType(req) {
@@ -83,8 +86,9 @@ function negotiateContentType(req) {
       return 'text/html';
   }
 }
+exports.negotiateContentType = negotiateContentType;
 
-/* compute the current date/time as a simple date */
+// Get today's date as a y-m-d string.
 function today() {
 
   var y, m, d, dt;
@@ -105,8 +109,9 @@ function today() {
 
   return y+'-'+m+'-'+d;
 }
+exports.today = today;
 
-/* compute the current date/time */
+// Get the current date and time as a string.
 function now() {
   var y, m, d, h, i, s, dt;
   
@@ -140,6 +145,7 @@ function now() {
   }
   return y+'-'+m+'-'+d+' '+h+':'+i+':'+s;
 }
+exports.now = now;
 
 // Return standard 'auth required' response.
 function authRequired(res,realm) {
@@ -147,4 +153,5 @@ function authRequired(res,realm) {
   res.send('Unauthorized', 
     { 'WWW-Authenticate': 'Basic realm="' + realm + '"' }, 401);
 }
+
 
