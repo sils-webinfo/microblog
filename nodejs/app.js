@@ -59,7 +59,7 @@ app.post('/messages/', function(req, res) {
 
     // Get the POSTed text and create a new message object.
     var text = req.body.message;
-    if (text !== '') {
+    if (text === '') {
       res.send('Empty message', 400);
     } else {
       var message = {
