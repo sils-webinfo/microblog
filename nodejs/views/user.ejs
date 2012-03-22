@@ -1,12 +1,12 @@
 <h2 id="page-title"><%= title %></h2>
-<div id="users" class="vcard">
+<div id="users">
   <ul class="single">
-      <li>
+      <li class="vcard">
         <% if(items[0].value.imageUrl!==undefined) { %>
         <img class="user-image photo" src="<%=items[0].value.imageUrl%>" />
         <% } %>
         
-        <a class="nickname url" rel="user" href="/users/<%=items[0].value._id%>" title="profile for <%=items[0].value._id%>">
+        <a class="fn url" rel="user" href="/users/<%=items[0].value._id%>" title="profile for <%=items[0].value._id%>">
           <span class="user-text"><%= items[0].value.name %></span>
         </a>
 
